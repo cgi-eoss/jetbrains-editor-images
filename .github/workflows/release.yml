@@ -62,13 +62,13 @@ jobs:
       - name: Docker login
         uses: docker/login-action@v1
         with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_USERNAME }}
-          password: ${{ secrets.QUAY_PASSWORD }}
+          registry: harbor.observing.earth
+          username: ${{ secrets.HARBOR_USERNAME }}
+          password: ${{ secrets.HARBOR_TOKEN }}
       - name: Build and save docker image
         run: |
           ./projector.sh build \
-              --tag ${{ secrets.QUAY_REPOSITORY }}/${{ matrix.dockerImage }}:${{ matrix.version }} \
+              --tag harbor.observing.earth/cgici/${{ matrix.dockerImage }}:${{ matrix.version }} \
               --url ${{ matrix.downloadUrl }} \
               --save-on-build \
               --progress plain \
@@ -89,17 +89,17 @@ jobs:
           asset_path: ${{ steps.release_asset_path.outputs.path }}
           asset_name: ${{ steps.release_asset_name.outputs.name }}
           asset_content_type: application/gzip
-      - name: Publish released image to quay.io
+      - name: Publish released image to harbor.observing.earth
         run: |
           # publish `repo/name:version`
-          docker push ${{ secrets.QUAY_REPOSITORY }}/${{ matrix.dockerImage }}:${{ matrix.version }}
+          docker push harbor.observing.earth/cgici/${{ matrix.dockerImage }}:${{ matrix.version }}
 
           # publish `repo/name:version-tag`
-          docker tag ${{ secrets.QUAY_REPOSITORY }}/${{ matrix.dockerImage }}:${{ matrix.version }} ${{ secrets.QUAY_REPOSITORY }}/${{ matrix.dockerImage }}:${{ matrix.version }}-${{ steps.tag_name.outputs.sourceTag }}
-          docker push ${{ secrets.QUAY_REPOSITORY }}/${{ matrix.dockerImage }}:${{ matrix.version }}-${{ steps.tag_name.outputs.sourceTag }}
+          docker tag harbor.observing.earth/cgici/${{ matrix.dockerImage }}:${{ matrix.version }} harbor.observing.earth/cgici/${{ matrix.dockerImage }}:${{ matrix.version }}-${{ steps.tag_name.outputs.sourceTag }}
+          docker push harbor.observing.earth/cgici/${{ matrix.dockerImage }}:${{ matrix.version }}-${{ steps.tag_name.outputs.sourceTag }}
 
           # publish `repo/name:latest`
           if [ ${{ matrix.latest }} == true ]; then
-            docker tag ${{ secrets.QUAY_REPOSITORY }}/${{ matrix.dockerImage }}:${{ matrix.version }} ${{ secrets.QUAY_REPOSITORY }}/${{ matrix.dockerImage }}:latest
-            docker push ${{ secrets.QUAY_REPOSITORY }}/${{ matrix.dockerImage }}:latest
+            docker tag harbor.observing.earth/cgici/${{ matrix.dockerImage }}:${{ matrix.version }} harbor.observing.earth/cgici/${{ matrix.dockerImage }}:latest
+            docker push harbor.observing.earth/cgici/${{ matrix.dockerImage }}:latest
           fi

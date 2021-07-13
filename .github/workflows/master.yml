@@ -34,7 +34,7 @@ jobs:
         run: |
           echo "::set-output name=matrix::{\"include\":[$( .github/build-container-matrix.sh -m all )]}"
   build:
-    name: ${{ matrix.productCode }} (${{ matrix.version }}) - Publish Next to Quay.io
+    name: ${{ matrix.productCode }} (${{ matrix.version }}) - Publish Next to harbor.observing.earth
     needs: prepare_environment
     runs-on: ubuntu-latest
     strategy:
@@ -47,14 +47,14 @@ jobs:
       - name: Docker login
         uses: docker/login-action@v1
         with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_USERNAME }}
-          password: ${{ secrets.QUAY_PASSWORD }}
+          registry: harbor.observing.earth
+          username: ${{ secrets.HARBOR_USERNAME }}
+          password: ${{ secrets.HARBOR_TOKEN }}
       - name: Docker image build and publish
         run: |
           ./projector.sh build \
-              --tag ${{ secrets.QUAY_REPOSITORY }}/${{ matrix.dockerImage }}:${{ matrix.version }}-next \
+              --tag harbor.observing.earth/cgici/${{ matrix.dockerImage }}:${{ matrix.version }}-next \
               --url ${{ matrix.downloadUrl }} \
               --progress plain \
               --log-level debug
-          docker push ${{ secrets.QUAY_REPOSITORY }}/${{ matrix.dockerImage }}:${{ matrix.version }}-next
+          docker push harbor.observing.earth/cgici/${{ matrix.dockerImage }}:${{ matrix.version }}-next
