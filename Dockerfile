@@ -30,15 +30,19 @@
 #   2. If buildGradle build argument is set to false, then consumes built Projector assembly from the host.
 #       2.1 Otherwise starts Gradle build of Projector Server and Projector Client.
 #   3. Copies static files to the Projector assembly (entrypoint, launcher, configuration).
-FROM registry.access.redhat.com/ubi8-minimal:8.4-205 as projectorAssembly
+FROM docker.io/ubuntu:focal-20210609 as projectorAssembly
 ENV PROJECTOR_DIR /projector
-ENV JAVA_HOME /usr/lib/jvm/java-11
+ENV JAVA_HOME /usr/lib/jvm/java-11-openjdk-amd64
 ARG idePackagingUrl
 ARG skipProjectorBuild
 ARG dockerfileBaseDir
 ADD projector-client $PROJECTOR_DIR/projector-client
 ADD projector-server $PROJECTOR_DIR/projector-server
-RUN microdnf install -y --nodocs findutils tar gzip unzip java-11-openjdk-devel
+RUN set -ex \
+    && export DEBIAN_FRONTEND=noninteractive \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends curl findutils tar gzip unzip openjdk-11-jdk-headless \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR $PROJECTOR_DIR/projector-server
 RUN if [ "$skipProjectorBuild" != "true" ]; then ./gradlew clean; else echo "Skipping Projector build"; fi \
     && if [ "$skipProjectorBuild" != "true" ]; then ./gradlew --console=plain :projector-server:distZip; else echo "Skipping Projector build"; fi \
@@ -67,23 +71,30 @@ RUN set -ex \
 
 # Stage 2. Build the main image with necessary environment for running Projector
 #   Doesn't require to be a desktop environment. Projector runs in headless mode.
-FROM registry.access.redhat.com/ubi8-minimal:8.4-205
+FROM docker.io/ubuntu:focal-20210609
 ENV PROJECTOR_USER_NAME projector-user
 ENV PROJECTOR_DIR /projector
 ENV HOME /home/$PROJECTOR_USER_NAME
 ENV PROJECTOR_CONFIG_DIR $HOME/.config
+ENV BAZELISK_VER 1.10.0
 RUN set -ex \
-    && microdnf install -y --nodocs \
-    shadow-utils wget git nss procps findutils which socat \
-    # Packages required by JetBrains products.
-    libsecret jq \
-    # Java 11 support
-    java-11-openjdk-devel \
-    # Python support
-    python2 python39 \
-    # Packages needed for AWT.
-    libXext libXrender libXtst libXi libX11-xcb mesa-libgbm libdrm freetype \
-    && adduser -r -u 1002 -G root -d $HOME -m -s /bin/sh $PROJECTOR_USER_NAME \
+    && export DEBIAN_FRONTEND=noninteractive \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+    curl wget git procps findutils socat \
+    # Packages required by JetBrains products and AWT
+    libsecret-1-0 jq libatk1.0-0 libdrm2 libfreetype6 libgbm1 libx11-xcb1 \
+    libxext6 libxi6 libxrender1 libxtst6 libext2fs2 \
+    # EOPP project and build dependencies
+    git-lfs gnupg build-essential openjdk-11-jdk-headless python3 python3-dev \
+    python3-pip python3-setuptools python3-wheel python-is-python3 sudo \
+    liblzma-dev bash-completion vim \
+    # Install firefox for headless testing deps, then remove it
+    firefox libdbus-glib-1-2 libgtk-3.0 libxt6 \
+    && apt-get -y purge firefox \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -sL "https://github.com/bazelbuild/bazelisk/releases/download/v${BAZELISK_VER}/bazelisk-linux-amd64" -o /usr/local/bin/bazel && chmod +x /usr/local/bin/bazel \
+    && useradd -r -u 1002 -G root -d $HOME -m -s /bin/sh $PROJECTOR_USER_NAME \
     && echo "%wheel ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers \
     && mkdir /projects \
     && for f in "${HOME}" "/etc/passwd" "/etc/group /projects"; do\
@@ -94,6 +105,8 @@ RUN set -ex \
     && cat /etc/group | sed s#root:x:0:#root:x:0:0,\${USER_ID}:#g > ${HOME}/group.template \
     # Change permissions to allow editing of files for openshift user
     && find $HOME -exec chgrp 0 {} \; -exec chmod g+rwX {} \;
+
+# libxshmfence1
 
 COPY --chown=$PROJECTOR_USER_NAME:root --from=projectorAssembly $PROJECTOR_DIR $PROJECTOR_DIR
 
